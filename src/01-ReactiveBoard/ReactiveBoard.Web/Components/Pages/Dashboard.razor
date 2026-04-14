@@ -1,0 +1,203 @@
+@page "/dashboard"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+
+<PageTitle>ReactiveBoard — Dashboard Live</PageTitle>
+
+<div class="container-fluid mt-3">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h2 class="text-primary">
+                <span class="me-2">📡</span> ReactiveBoard — Global Azure 2026
+            </h2>
+            <p class="text-muted">Dashboard real-time della conferenza</p>
+        </div>
+    </div>
+
+    @if (!_isConnected)
+    {
+        <div class="alert alert-warning">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Connessione al server in corso...
+        </div>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            <!-- Partecipanti -->
+            <div class="col-md-3">
+                <div class="card border-primary h-100">
+                    <div class="card-body text-center">
+                        <h6 class="card-subtitle text-muted mb-2">👥 Partecipanti in sala</h6>
+                        <h1 class="display-4 text-primary fw-bold">@_attendeeCount</h1>
+                        <small class="text-muted">Ultimo aggiornamento: @_lastUpdate.ToString("HH:mm:ss")</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Talk corrente -->
+            <div class="col-md-5">
+                <div class="card border-success h-100">
+                    <div class="card-body">
+                        <h6 class="card-subtitle text-muted mb-2">🎤 Talk in corso</h6>
+                        <h4 class="text-success">@_currentTalk</h4>
+                        <div class="progress mt-2" style="height: 8px;">
+                            <div class="progress-bar bg-success" style="width: @_talkProgressPercent%"></div>
+                        </div>
+                        <small class="text-muted">Tempo rimanente: @_remainingTime.ToString(@"mm\:ss")</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Prossimo talk -->
+            <div class="col-md-4">
+                <div class="card border-warning h-100">
+                    <div class="card-body">
+                        <h6 class="card-subtitle text-muted mb-2">⏭️ Prossimo talk</h6>
+                        <h4 class="text-warning">@_nextTalk</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Voti live -->
+        <div class="row g-3 mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">🗳️ Voti live del pubblico</h5>
+                        <div class="row">
+                            @foreach (var vote in _votes.OrderByDescending(v => v.Value))
+                            {
+                                <div class="col-md-3 mb-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>@vote.Key</span>
+                                        <span class="badge bg-primary rounded-pill">@vote.Value</span>
+                                    </div>
+                                    <div class="progress" style="height: 6px;">
+                                        <div class="progress-bar" style="width: @(GetVotePercent(vote.Value))%"></div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log eventi -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">📋 Ultimi eventi</h5>
+                        <div style="max-height: 200px; overflow-y: auto;">
+                            <ul class="list-group list-group-flush">
+                                @foreach (var evt in _events.TakeLast(20).Reverse())
+                                {
+                                    <li class="list-group-item py-1 small">
+                                        <span class="text-muted">@evt.Time.ToString("HH:mm:ss")</span>
+                                        <span class="ms-2">@evt.Icon</span>
+                                        <span>@evt.Message</span>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private HubConnection? _hubConnection;
+    private bool _isConnected;
+    private int _attendeeCount;
+    private string _currentTalk = "—";
+    private string _nextTalk = "—";
+    private TimeSpan _remainingTime;
+    private int _talkProgressPercent;
+    private DateTime _lastUpdate = DateTime.Now;
+    private Dictionary<string, int> _votes = new();
+    private List<EventLog> _events = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/conferencehub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<int, string>("AttendeeUpdate", (count, action) =>
+        {
+            _attendeeCount = count;
+            _lastUpdate = DateTime.Now;
+            _events.Add(new("👥", $"{action} — Totale: {count}"));
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<string, string, int>("VoteUpdate", (talk, rating, totalVotes) =>
+        {
+            _votes[rating] = _votes.GetValueOrDefault(rating) + 1;
+            _events.Add(new("🗳️", $"Voto '{rating}' per '{talk}' (totale: {totalVotes})"));
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<string, string, int, int>("TalkUpdate", (current, next, remainingSeconds, progressPercent) =>
+        {
+            _currentTalk = current;
+            _nextTalk = next;
+            _remainingTime = TimeSpan.FromSeconds(remainingSeconds);
+            _talkProgressPercent = progressPercent;
+            _lastUpdate = DateTime.Now;
+            _events.Add(new("🎤", $"Talk: {current} — Rimanente: {remainingSeconds / 60}m"));
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<string>("Connected", _ =>
+        {
+            _isConnected = true;
+            _events.Add(new("✅", "Connesso al server SignalR"));
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.Reconnecting += _ =>
+        {
+            _isConnected = false;
+            InvokeAsync(StateHasChanged);
+            return Task.CompletedTask;
+        };
+
+        _hubConnection.Reconnected += _ =>
+        {
+            _isConnected = true;
+            InvokeAsync(StateHasChanged);
+            return Task.CompletedTask;
+        };
+
+        await _hubConnection.StartAsync();
+    }
+
+    private int GetVotePercent(int count)
+    {
+        var max = _votes.Values.DefaultIfEmpty(1).Max();
+        return max > 0 ? (int)(count * 100.0 / max) : 0;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    private record EventLog(string Icon, string Message)
+    {
+        public DateTime Time { get; } = DateTime.Now;
+    }
+}

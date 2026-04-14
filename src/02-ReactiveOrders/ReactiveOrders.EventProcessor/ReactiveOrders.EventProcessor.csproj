@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ReactiveOrders.ServiceDefaults\ReactiveOrders.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\ReactiveOrders.ReadModel\ReactiveOrders.ReadModel.csproj" />
+    <ProjectReference Include="..\ReactiveOrders.Contracts\ReactiveOrders.Contracts.csproj" />
+    <ProjectReference Include="..\ReactiveOrders.Domain\ReactiveOrders.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Azure.Messaging.ServiceBus" Version="13.2.2" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.6" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.6" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.6" />
+    <PackageReference Include="WolverineFx" Version="5.30.0" />
+    <PackageReference Include="WolverineFx.AzureServiceBus" Version="5.30.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

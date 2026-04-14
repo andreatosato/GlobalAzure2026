@@ -1,0 +1,6 @@
+@ReactiveOrders.ReadApi_HostAddress = http://localhost:5128
+
+GET {{ReactiveOrders.ReadApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
