@@ -1,0 +1,65 @@
+@page "/"
+@implements IDisposable
+@inject SimulatorState State
+@rendermode InteractiveServer
+
+<PageTitle>Simulator Monitor</PageTitle>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+
+    <div style="border: 1px solid #ddd; border-radius: 8px; padding: 1rem;">
+        <h3>📡 Connection</h3>
+        <p style="font-size: 1.5rem;">
+            @if (State.IsConnected)
+            {
+                <span style="color: green;">● Connected</span>
+            }
+            else
+            {
+                <span style="color: red;">● Disconnected</span>
+            }
+        </p>
+        <p>Events sent: <strong>@State.EventsSent</strong></p>
+    </div>
+
+    <div style="border: 1px solid #ddd; border-radius: 8px; padding: 1rem;">
+        <h3>👥 Attendees</h3>
+        <p style="font-size: 2rem; font-weight: bold;">@State.AttendeeCount</p>
+        <p style="color: #666;">Last: @State.LastAttendeeAction</p>
+    </div>
+
+    <div style="border: 1px solid #ddd; border-radius: 8px; padding: 1rem; grid-column: span 2;">
+        <h3>🎤 Current Talk</h3>
+        <p style="font-size: 1.2rem; font-weight: bold;">@State.CurrentTalk</p>
+        <div style="background: #eee; border-radius: 4px; height: 20px; overflow: hidden;">
+            <div style="background: #6c47ff; height: 100%; width: @(State.ProgressPercent)%; transition: width 0.5s;"></div>
+        </div>
+        <p style="margin-top: 0.5rem; color: #666;">
+            ⏱️ @State.RemainingSeconds s remaining &middot;
+            Next: @State.NextTalk
+        </p>
+    </div>
+
+    <div style="border: 1px solid #ddd; border-radius: 8px; padding: 1rem; grid-column: span 2;">
+        <h3>🗳️ Votes</h3>
+        <p>Total: <strong>@State.TotalVotes</strong> &middot; Last rating: @State.LastRating</p>
+    </div>
+
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        State.OnChange += HandleStateChange;
+    }
+
+    private void HandleStateChange()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        State.OnChange -= HandleStateChange;
+    }
+}

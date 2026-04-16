@@ -5,7 +5,10 @@ using Microsoft.Extensions.Logging;
 
 namespace ReactiveBoard.Simulator;
 
-public class ConferenceSimulator(ILogger<ConferenceSimulator> logger, IConfiguration configuration) : BackgroundService
+public class ConferenceSimulator(
+    ILogger<ConferenceSimulator> logger,
+    IConfiguration configuration,
+    SimulatorState state) : BackgroundService
 {
     private static readonly string[] Talks =
     [
@@ -41,11 +44,17 @@ public class ConferenceSimulator(ILogger<ConferenceSimulator> logger, IConfigura
 
                 await connection.StartAsync(stoppingToken);
                 logger.LogInformation("Connected to ConferenceHub");
+                state.SetConnected(true);
                 break;
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to connect to hub, retrying in 3s...");
+                if (connection is not null)
+                {
+                    await connection.DisposeAsync();
+                    connection = null;
+                }
                 await Task.Delay(3000, stoppingToken);
             }
         }
@@ -84,6 +93,9 @@ public class ConferenceSimulator(ILogger<ConferenceSimulator> logger, IConfigura
                     progressPercent,
                     stoppingToken);
 
+                state.UpdateTalk(Talks[currentTalkIndex], Talks[(currentTalkIndex + 1) % Talks.Length],
+                    (int)remaining.TotalSeconds, progressPercent);
+
                 // Simulate attendee check-in/out
                 var action = random.Next(10) < 7 ? "check-in" : "check-out";
                 attendeeCount += action == "check-in" ? random.Next(1, 5) : -random.Next(1, 3);
@@ -93,6 +105,9 @@ public class ConferenceSimulator(ILogger<ConferenceSimulator> logger, IConfigura
                     attendeeCount,
                     action == "check-in" ? $"+{random.Next(1, 5)} check-in" : $"-{random.Next(1, 3)} check-out",
                     stoppingToken);
+
+                state.UpdateAttendees(attendeeCount,
+                    action == "check-in" ? "check-in" : "check-out");
 
                 // Simulate votes (70% chance each cycle)
                 if (random.Next(10) < 7)
@@ -104,6 +119,8 @@ public class ConferenceSimulator(ILogger<ConferenceSimulator> logger, IConfigura
                         rating,
                         totalVotes,
                         stoppingToken);
+
+                    state.UpdateVote(rating, totalVotes);
                 }
 
                 var delay = random.Next(2000, 4000);
@@ -121,6 +138,9 @@ public class ConferenceSimulator(ILogger<ConferenceSimulator> logger, IConfigura
         }
 
         if (connection is not null)
+        {
+            state.SetConnected(false);
             await connection.DisposeAsync();
+        }
     }
 }

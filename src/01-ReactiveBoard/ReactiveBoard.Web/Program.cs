@@ -9,8 +9,7 @@ builder.AddServiceDefaults();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddSignalR()
-    .AddNamedAzureSignalR("signalr");
+builder.Services.AddSignalR();
 
 var app = builder.Build();
 
