@@ -48,31 +48,33 @@ public class OrderSimulator : BackgroundService
         {
             try
             {
-                var action = placedOrders.Count > 0 ? _random.Next(0, 10) : 0;
+                // Action mix: 40% place · 45% confirm (oldest first) · 8% reject · 7% cancel
+                var action = placedOrders.Count > 0 ? _random.Next(0, 100) : 0;
 
-                if (action < 6)
+                if (action < 40)
                 {
                     var orderId = await PlaceOrderAsync(stoppingToken);
                     if (orderId.HasValue)
                         placedOrders.Add(orderId.Value);
                 }
-                else if (action < 8)
+                else if (action < 85)
                 {
-                    var orderId = placedOrders[_random.Next(placedOrders.Count)];
+                    // Confirm the oldest pending order (FIFO, like a real kitchen)
+                    var orderId = placedOrders[0];
+                    placedOrders.RemoveAt(0);
                     await ConfirmOrderAsync(orderId, stoppingToken);
-                    placedOrders.Remove(orderId);
                 }
-                else if (action < 9)
+                else if (action < 93)
                 {
                     var orderId = placedOrders[_random.Next(placedOrders.Count)];
-                    await RejectOrderAsync(orderId, stoppingToken);
                     placedOrders.Remove(orderId);
+                    await RejectOrderAsync(orderId, stoppingToken);
                 }
                 else
                 {
                     var orderId = placedOrders[_random.Next(placedOrders.Count)];
-                    await CancelOrderAsync(orderId, stoppingToken);
                     placedOrders.Remove(orderId);
+                    await CancelOrderAsync(orderId, stoppingToken);
                 }
             }
             catch (Exception ex)
@@ -88,12 +90,17 @@ public class OrderSimulator : BackgroundService
     {
         var client = _httpClientFactory.CreateClient("commandapi");
         var itemCount = _random.Next(1, 4);
-        var items = new List<OrderItem>();
+        var picked = new Dictionary<string, (int Quantity, decimal Price)>();
         for (int i = 0; i < itemCount; i++)
         {
             var (name, price) = Menu[_random.Next(Menu.Length)];
-            items.Add(new OrderItem(name, _random.Next(1, 3), price));
+            var qty = _random.Next(1, 3);
+            if (picked.TryGetValue(name, out var existing))
+                picked[name] = (existing.Quantity + qty, price);
+            else
+                picked[name] = (qty, price);
         }
+        var items = picked.Select(p => new OrderItem(p.Key, p.Value.Quantity, p.Value.Price)).ToList();
 
         var command = new PlaceOrder(items, Attendees[_random.Next(Attendees.Length)], $"Simulated order");
         var response = await client.PostAsJsonAsync("/api/orders", command, ct);

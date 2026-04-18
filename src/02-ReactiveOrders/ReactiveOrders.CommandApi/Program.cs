@@ -1,3 +1,4 @@
+using Azure.Identity;
 using Microsoft.EntityFrameworkCore;
 using ReactiveOrders.Contracts.Commands;
 using ReactiveOrders.Domain;
@@ -13,8 +14,22 @@ builder.Services.AddDbContext<OrderDbContext>(options =>
 
 builder.UseWolverine(opts =>
 {
-    opts.UseAzureServiceBus(builder.Configuration.GetConnectionString("messaging")!)
-        .AutoProvision();
+    // L'emulatore Azure Service Bus non supporta l'API HTTP di amministrazione
+    // né la creazione dinamica di queue di sistema (retries/response).
+    // Topic/subscription sono preconfigurati dall'AppHost.
+    var messagingConn = builder.Configuration.GetConnectionString("messaging")!;
+    if (messagingConn.Contains("SharedAccessKey", StringComparison.OrdinalIgnoreCase)
+        || messagingConn.Contains("Endpoint=", StringComparison.OrdinalIgnoreCase))
+    {
+        // Emulatore locale o connection string classica
+        opts.UseAzureServiceBus(messagingConn).SystemQueuesAreEnabled(false);
+    }
+    else
+    {
+        // In produzione Aspire inietta il FQDN del namespace e usa managed identity
+        opts.UseAzureServiceBus(messagingConn, new DefaultAzureCredential())
+            .SystemQueuesAreEnabled(false);
+    }
 
     opts.PublishMessage<ReactiveOrders.Contracts.Events.OrderPlaced>()
         .ToAzureServiceBusTopic("order-events");

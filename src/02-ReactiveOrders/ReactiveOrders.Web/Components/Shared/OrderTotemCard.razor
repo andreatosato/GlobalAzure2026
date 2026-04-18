@@ -1,0 +1,52 @@
+@namespace ReactiveOrders.Web.Components.Shared
+
+<MudPaper Elevation="6" Class="pa-6 totem-card" Style="@CardStyle">
+    <div class="d-flex flex-column align-center">
+        <MudText Typo="Typo.overline" Style="opacity:0.7; letter-spacing:3px;">Ordine</MudText>
+        <MudText Typo="Typo.h1" Style="font-weight:900; font-size:5.5rem; line-height:1;">
+            #@OrderNumber
+        </MudText>
+        <MudChip T="string" Color="@OrderStatus.ToColor(Order.Status)" Size="Size.Large"
+                 Icon="@OrderStatus.ToIcon(Order.Status)" Variant="Variant.Filled" Class="mt-2"
+                 Style="font-size:1.2rem; height:auto; padding:.4rem .8rem;">
+            @OrderStatus.ToLabel(Order.Status)
+        </MudChip>
+
+        <div class="d-flex flex-wrap justify-center gap-2 mt-4">
+            @foreach (var item in Items.Take(8))
+            {
+                <div class="d-flex flex-column align-center" style="min-width:70px;">
+                    <MudText Typo="Typo.h3">@MenuCatalog.EmojiFor(item.Name)</MudText>
+                    <MudText Typo="Typo.caption" Style="opacity:0.85;">x@(item.Quantity)</MudText>
+                </div>
+            }
+            @if (Items.Count > 8)
+            {
+                <MudText Typo="Typo.body1" Class="align-self-center">+@(Items.Count - 8)</MudText>
+            }
+        </div>
+
+        @if (Order.EstimatedReady is not null && Order.Status == OrderStatus.Confirmed)
+        {
+            <MudText Typo="Typo.h5" Class="mt-4" Style="opacity:0.9;">
+                ⏱ Pronto alle @Order.EstimatedReady.Value.ToLocalTime().ToString("HH:mm")
+            </MudText>
+        }
+    </div>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public OrderView Order { get; set; } = default!;
+    [Parameter] public List<OrderItemDto> Items { get; set; } = [];
+
+    private string OrderNumber => Order.OrderId.ToString("N")[..4].ToUpperInvariant();
+
+    private string CardStyle => Order.Status switch
+    {
+        OrderStatus.Confirmed => "background: linear-gradient(135deg,#2EC4B6,#1B998B); color:white; border-radius:24px; min-height:320px;",
+        OrderStatus.Placed    => "background: linear-gradient(135deg,#F4A261,#E76F51); color:white; border-radius:24px; min-height:320px;",
+        OrderStatus.Rejected  => "background: linear-gradient(135deg,#E63946,#B5171E); color:white; border-radius:24px; min-height:320px;",
+        OrderStatus.Cancelled => "background: linear-gradient(135deg,#6c757d,#343a40); color:white; border-radius:24px; min-height:320px;",
+        _ => "background: #1E1E1E; color:white; border-radius:24px; min-height:320px;"
+    };
+}

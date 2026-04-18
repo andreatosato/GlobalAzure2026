@@ -20,6 +20,14 @@ app.MapGet("/api/orders/{orderId:guid}", async (Guid orderId, ReadModelDbContext
         ? Results.Ok(order)
         : Results.NotFound());
 
+app.MapGet("/api/orders/{orderId:guid}/details", async (Guid orderId, ReadModelDbContext db) =>
+{
+    var order = await db.OrderList.FindAsync(orderId);
+    if (order is null) return Results.NotFound();
+    var items = await db.OrderItems.Where(i => i.OrderId == orderId).ToListAsync();
+    return Results.Ok(new { Order = order, Items = items });
+});
+
 app.MapGet("/api/kitchen", async (ReadModelDbContext db) =>
     await db.KitchenDashboard
         .Where(k => k.Status == "Placed" || k.Status == "Confirmed")

@@ -1,0 +1,139 @@
+@page "/totem"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Net.Http.Json
+@implements IAsyncDisposable
+@inject NavigationManager Nav
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>ReactiveOrders — Totem</PageTitle>
+
+<HeadContent>
+    <style>
+        body { background: #0b0b0f !important; }
+    </style>
+</HeadContent>
+
+<div class="totem-root" style="min-height:100vh; background:linear-gradient(180deg,#0b0b0f 0%,#1a1a22 100%); color:white; padding:2rem;">
+    <div class="d-flex align-center mb-6">
+        <MudText Typo="Typo.h2" Style="font-weight:900; letter-spacing:2px;">🍕 ORDINI</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.h4" Style="opacity:0.7;">@_now.ToString("HH:mm:ss")</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit" Href="/orders" Class="ml-4" />
+    </div>
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h3" Align="Align.Center" Class="mb-4"
+                     Style="font-weight:800; color:#F4A261; text-shadow:0 0 20px rgba(244,162,97,0.5);">
+                🧑‍🍳 IN PREPARAZIONE
+            </MudText>
+            @if (_confirmedPending.Count == 0)
+            {
+                <MudText Align="Align.Center" Typo="Typo.h6" Style="opacity:0.5;">Nessun ordine</MudText>
+            }
+            else
+            {
+                <MudGrid Spacing="3">
+                    @foreach (var o in _confirmedPending.Take(6))
+                    {
+                        <MudItem xs="12" sm="6">
+                            <OrderTotemCard Order="o" Items="@GetItems(o.OrderId)" />
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h3" Align="Align.Center" Class="mb-4"
+                     Style="font-weight:800; color:#2EC4B6; text-shadow:0 0 20px rgba(46,196,182,0.5);">
+                ✅ PRONTI AL RITIRO
+            </MudText>
+            @if (_ready.Count == 0)
+            {
+                <MudText Align="Align.Center" Typo="Typo.h6" Style="opacity:0.5;">In attesa...</MudText>
+            }
+            else
+            {
+                <MudGrid Spacing="3">
+                    @foreach (var o in _ready.Take(6))
+                    {
+                        <MudItem xs="12" sm="6">
+                            <OrderTotemCard Order="o" Items="@GetItems(o.OrderId)" />
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudItem>
+    </MudGrid>
+</div>
+
+@code {
+    private HubConnection? _hubConnection;
+    private System.Timers.Timer? _clock;
+    private DateTime _now = DateTime.Now;
+
+    private List<OrderView> _placed = [];
+    private List<OrderView> _confirmedPending = [];
+    private List<OrderView> _ready = [];
+    private readonly Dictionary<Guid, List<OrderItemDto>> _itemsCache = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/orderhub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<string, Guid>("OrderUpdate", async (_, __) => await LoadAsync());
+        await _hubConnection.StartAsync();
+        await LoadAsync();
+
+        _clock = new System.Timers.Timer(1000);
+        _clock.Elapsed += async (_, _) =>
+        {
+            _now = DateTime.Now;
+            await InvokeAsync(StateHasChanged);
+        };
+        _clock.Start();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ReadApi");
+            var all = await client.GetFromJsonAsync<List<OrderView>>("/api/orders") ?? [];
+
+            _placed = all.Where(o => o.Status == OrderStatus.Placed).OrderBy(o => o.CreatedAt).ToList();
+            // Confirmed orders are ready at EstimatedReady; treat as "in preparation" until then, otherwise "ready".
+            var now = DateTime.UtcNow;
+            var confirmed = all.Where(o => o.Status == OrderStatus.Confirmed).ToList();
+            _confirmedPending = confirmed.Where(o => o.EstimatedReady is null || o.EstimatedReady > now).OrderBy(o => o.EstimatedReady).ToList();
+            _ready            = confirmed.Where(o => o.EstimatedReady is not null && o.EstimatedReady <= now).OrderByDescending(o => o.EstimatedReady).ToList();
+
+            var visibleIds = _confirmedPending.Concat(_ready).Select(o => o.OrderId).Distinct().ToList();
+            foreach (var id in visibleIds.Where(id => !_itemsCache.ContainsKey(id)))
+            {
+                try
+                {
+                    var details = await client.GetFromJsonAsync<OrderDetails>($"/api/orders/{id}/details");
+                    if (details is not null) _itemsCache[id] = details.Items;
+                }
+                catch { /* ignore */ }
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { /* ignore transient */ }
+    }
+
+    private List<OrderItemDto> GetItems(Guid id) =>
+        _itemsCache.TryGetValue(id, out var items) ? items : [];
+
+    public async ValueTask DisposeAsync()
+    {
+        _clock?.Dispose();
+        if (_hubConnection is not null) await _hubConnection.DisposeAsync();
+    }
+}

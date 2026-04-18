@@ -29,7 +29,7 @@ public static class ConfirmOrderHandler
         var order = await db.Orders.FindAsync(command.OrderId)
             ?? throw new InvalidOperationException($"Order {command.OrderId} not found");
 
-        var estimatedReady = DateTime.UtcNow.AddMinutes(15);
+        var estimatedReady = DateTime.UtcNow.AddSeconds(30);
         order.Confirm(estimatedReady);
         await db.SaveChangesAsync();
 

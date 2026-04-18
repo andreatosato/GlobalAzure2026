@@ -1,23 +1,90 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+@if (_isTotem)
+{
+    @Body
+}
+else
+{
+    <MudLayout>
+        <MudAppBar Elevation="2" Color="Color.Primary">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
+            <MudText Typo="Typo.h5" Class="ml-2" Style="font-weight:700;">🍕 ReactiveOrders</MudText>
+            <MudSpacer />
+            <MudChip T="string" Icon="@Icons.Material.Filled.Bolt" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">CQRS Live</MudChip>
+        </MudAppBar>
+        <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="1" Variant="DrawerVariant.Mini" OpenMiniOnHover="true">
+            <NavMenu />
+        </MudDrawer>
+        <MudMainContent>
+            <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="pa-4">
+                @Body
+            </MudContainer>
+        </MudMainContent>
+    </MudLayout>
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    private bool _drawerOpen = true;
+    private bool _isTotem;
+    private readonly MudTheme _theme = BuildTheme();
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        UpdateTotemMode();
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+        => UpdateTotemMode();
+
+    private void UpdateTotemMode()
+    {
+        var path = new Uri(Nav.Uri).AbsolutePath.TrimEnd('/').ToLowerInvariant();
+        var nowTotem = path == "/totem";
+        if (nowTotem != _isTotem)
+        {
+            _isTotem = nowTotem;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+
+    private static MudTheme BuildTheme() => new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#D7263D",
+            Secondary = "#F46036",
+            Tertiary = "#1B998B",
+            Success = "#2EC4B6",
+            Warning = "#F4A261",
+            Error = "#E63946",
+            Info = "#264653",
+            Background = "#F7F7FB",
+            Surface = "#FFFFFF",
+            AppbarBackground = "#D7263D"
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" } }
+        }
+    };
+}

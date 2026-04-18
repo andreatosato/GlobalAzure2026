@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR.Client;
+﻿using Azure.Identity;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,8 +31,20 @@ builder.Services.AddHostedService<ReactiveOrders.EventProcessor.SignalRConnectio
 
 builder.UseWolverine(opts =>
 {
-    opts.UseAzureServiceBus(builder.Configuration.GetConnectionString("messaging")!)
-        .AutoProvision();
+    // L'emulatore Azure Service Bus non supporta l'API HTTP di amministrazione
+    // né la creazione dinamica di queue di sistema (retries/response).
+    // Topic/subscription sono preconfigurati dall'AppHost.
+    var messagingConn = builder.Configuration.GetConnectionString("messaging")!;
+    if (messagingConn.Contains("SharedAccessKey", StringComparison.OrdinalIgnoreCase)
+        || messagingConn.Contains("Endpoint=", StringComparison.OrdinalIgnoreCase))
+    {
+        opts.UseAzureServiceBus(messagingConn).SystemQueuesAreEnabled(false);
+    }
+    else
+    {
+        opts.UseAzureServiceBus(messagingConn, new DefaultAzureCredential())
+            .SystemQueuesAreEnabled(false);
+    }
 
     opts.ListenToAzureServiceBusSubscription("event-processor")
         .FromTopic("order-events")

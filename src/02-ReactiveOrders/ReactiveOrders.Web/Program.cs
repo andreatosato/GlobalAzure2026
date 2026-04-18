@@ -1,3 +1,4 @@
+using MudBlazor.Services;
 using ReactiveOrders.Web.Components;
 using ReactiveOrders.Web.Hubs;
 
@@ -6,10 +7,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options => options.DetailedErrors = true);
 
-builder.Services.AddSignalR()
-    .AddNamedAzureSignalR("signalr");
+builder.Services.AddMudServices();
+
+var signalRBuilder = builder.Services.AddSignalR();
+
+// In produzione la risorsa Azure SignalR è configurata tramite Aspire e la
+// connection string "signalr" è presente; in locale si usa il SignalR integrato.
+if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("signalr")))
+{
+    signalRBuilder.AddNamedAzureSignalR("signalr");
+}
 
 builder.Services.AddHttpClient("CommandApi", client =>
 {

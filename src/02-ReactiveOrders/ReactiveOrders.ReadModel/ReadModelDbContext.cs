@@ -10,6 +10,7 @@ public class ReadModelDbContext : DbContext
     public DbSet<KitchenDashboardView> KitchenDashboard => Set<KitchenDashboardView>();
     public DbSet<OrderStatsView> OrderStats => Set<OrderStatsView>();
     public DbSet<PopularItemView> PopularItems => Set<PopularItemView>();
+    public DbSet<OrderItemView> OrderItems => Set<OrderItemView>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,6 +30,7 @@ public class ReadModelDbContext : DbContext
         modelBuilder.Entity<OrderStatsView>(e =>
         {
             e.HasKey(o => o.Id);
+            e.Property(o => o.Id).ValueGeneratedNever();
             e.ToTable("OrderStatsView");
         });
 
@@ -37,6 +39,13 @@ public class ReadModelDbContext : DbContext
             e.HasKey(o => o.ItemName);
             e.Property(o => o.ItemName).HasMaxLength(200);
             e.ToTable("PopularItemView");
+        });
+
+        modelBuilder.Entity<OrderItemView>(e =>
+        {
+            e.HasKey(o => new { o.OrderId, o.Name });
+            e.Property(o => o.Name).HasMaxLength(200);
+            e.ToTable("OrderItemView");
         });
     }
 }

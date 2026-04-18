@@ -41,3 +41,11 @@ public class PopularItemView
     public int OrderCount { get; set; }
     public int TotalQuantity { get; set; }
 }
+
+public class OrderItemView
+{
+    public Guid OrderId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+}

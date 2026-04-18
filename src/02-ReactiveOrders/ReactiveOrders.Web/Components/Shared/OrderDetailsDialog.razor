@@ -1,0 +1,156 @@
+@namespace ReactiveOrders.Web.Components.Shared
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Receipt" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Ordine #@OrderId.ToString()[..8]</MudText>
+            @if (_details is not null)
+            {
+                <MudSpacer />
+                <MudChip T="string" Color="@OrderStatus.ToColor(_details.Order.Status)"
+                         Icon="@OrderStatus.ToIcon(_details.Order.Status)" Variant="Variant.Filled">
+                    @OrderStatus.ToLabel(_details.Order.Status)
+                </MudChip>
+            }
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="d-flex justify-center pa-6">
+                <MudProgressCircular Indeterminate="true" />
+            </div>
+        }
+        else if (_details is null)
+        {
+            <MudAlert Severity="Severity.Error">Impossibile caricare l'ordine.</MudAlert>
+        }
+        else
+        {
+            <MudGrid>
+                <MudItem xs="12" md="7">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Articoli</MudText>
+                    <MudList T="OrderItemDto" Dense="true">
+                        @foreach (var item in _details.Items)
+                        {
+                            <MudListItem T="OrderItemDto" Value="item">
+                                <div class="d-flex align-center gap-3 py-1">
+                                    <MudText Typo="Typo.h5">@MenuCatalog.EmojiFor(item.Name)</MudText>
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body1" Style="font-weight:600;">@item.Name</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Default">
+                                            €@item.UnitPrice.ToString("N2") cad.
+                                        </MudText>
+                                    </div>
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined">x@(item.Quantity)</MudChip>
+                                    <MudText Typo="Typo.body1" Style="min-width:80px; text-align:right;">
+                                        <b>€@((item.Quantity * item.UnitPrice).ToString("N2"))</b>
+                                    </MudText>
+                                </div>
+                            </MudListItem>
+                        }
+                    </MudList>
+                    <MudDivider Class="my-2" />
+                    <div class="d-flex justify-end">
+                        <MudText Typo="Typo.h6">Totale €@_details.Order.TotalAmount.ToString("N2")</MudText>
+                    </div>
+                </MudItem>
+                <MudItem xs="12" md="5">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Dettagli</MudText>
+                    <MudPaper Elevation="0" Class="pa-3" Style="background: var(--mud-palette-background-grey);">
+                        <InfoRow Icon="@Icons.Material.Filled.Person" Label="Partecipante" Value="@_details.Order.AttendeeId" />
+                        <InfoRow Icon="@Icons.Material.Filled.Schedule" Label="Creato" Value="@_details.Order.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm:ss")" />
+                        @if (_details.Order.ConfirmedAt is not null)
+                        {
+                            <InfoRow Icon="@Icons.Material.Filled.CheckCircle" Label="Confermato"
+                                     Value="@_details.Order.ConfirmedAt.Value.ToLocalTime().ToString("HH:mm:ss")" />
+                        }
+                        @if (_details.Order.EstimatedReady is not null)
+                        {
+                            <InfoRow Icon="@Icons.Material.Filled.Timer" Label="Pronto alle"
+                                     Value="@_details.Order.EstimatedReady.Value.ToLocalTime().ToString("HH:mm")" />
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_details.Order.RejectionReason))
+                        {
+                            <InfoRow Icon="@Icons.Material.Filled.ErrorOutline" Label="Motivo rifiuto" Value="@_details.Order.RejectionReason" />
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (_details?.Order.Status == OrderStatus.Placed)
+        {
+            <MudButton Color="Color.Success" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.CheckCircle"
+                       OnClick='() => Act("confirm")'>Conferma</MudButton>
+            <MudButton Color="Color.Error" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Cancel"
+                       OnClick='() => Act("reject")'>Rifiuta</MudButton>
+            <MudButton Color="Color.Default" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Block"
+                       OnClick='() => Act("cancel")'>Annulla</MudButton>
+        }
+        <MudButton OnClick="Close">Chiudi</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public Guid OrderId { get; set; }
+
+    private bool _loading = true;
+    private OrderDetails? _details;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ReadApi");
+            _details = await client.GetFromJsonAsync<OrderDetails>($"/api/orders/{OrderId}/details");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Act(string action)
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("CommandApi");
+            HttpResponseMessage response = action switch
+            {
+                "confirm" => await client.PostAsync($"/api/orders/{OrderId}/confirm", null),
+                "reject"  => await client.PostAsJsonAsync($"/api/orders/{OrderId}/reject", new { Reason = "Manual rejection" }),
+                "cancel"  => await client.PostAsync($"/api/orders/{OrderId}/cancel", null),
+                _ => throw new InvalidOperationException()
+            };
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add($"Azione \"{action}\" inviata", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                Snackbar.Add($"Errore: {response.StatusCode}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(false));
+}

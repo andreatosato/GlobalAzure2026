@@ -46,6 +46,18 @@ public class OrderPlacedHandler(ReadModelDbContext db, HubConnection hub, ILogge
             stats.LastUpdated = DateTime.UtcNow;
         }
 
+        // Store items for the order (aggregate duplicates by name)
+        foreach (var grouped in @event.Items.GroupBy(i => i.Name))
+        {
+            db.OrderItems.Add(new OrderItemView
+            {
+                OrderId = @event.OrderId,
+                Name = grouped.Key,
+                Quantity = grouped.Sum(i => i.Quantity),
+                UnitPrice = grouped.First().UnitPrice
+            });
+        }
+
         // Update PopularItems
         foreach (var item in @event.Items)
         {

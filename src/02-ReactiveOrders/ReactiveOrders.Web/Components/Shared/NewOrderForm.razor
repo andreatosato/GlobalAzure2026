@@ -1,0 +1,121 @@
+@namespace ReactiveOrders.Web.Components.Shared
+@using System.Net.Http.Json
+@using ReactiveOrders.Contracts.Commands
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+
+<MudCard Elevation="3" Class="h-100">
+    <MudCardHeader>
+        <CardHeaderAvatar>
+            <MudAvatar Color="Color.Primary"><MudIcon Icon="@Icons.Material.Filled.AddShoppingCart" /></MudAvatar>
+        </CardHeaderAvatar>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Nuovo ordine</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Default">Seleziona piatti e invia</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudTextField @bind-Value="_attendeeId" Label="Partecipante" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person" />
+
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Menu</MudText>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var item in MenuCatalog.Items.Where(IsVisible))
+            {
+                var qty = _cart.TryGetValue(item.Name, out var v) ? v : 0;
+                var selected = qty > 0;
+                <MudPaper Elevation="@(selected ? 4 : 1)"
+                          Class="@($"pa-2 d-flex align-center gap-2 {(selected ? "mud-theme-primary" : string.Empty)}")"
+                          Style="@($"cursor:pointer; border-radius:12px; min-width:160px; {(selected ? "color:white;" : string.Empty)}")"
+                          @onclick="() => Toggle(item.Name)">
+                    <MudText Typo="Typo.h5">@item.Emoji</MudText>
+                    <div class="flex-grow-1">
+                        <MudText Typo="Typo.body2" Style="font-weight:600;">@item.Name</MudText>
+                        <MudText Typo="Typo.caption">€@item.Price.ToString("N2")</MudText>
+                    </div>
+                    @if (selected)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled">x@(qty)</MudChip>
+                    }
+                </MudPaper>
+            }
+        </div>
+
+        <MudTextField @bind-Value="_notes" Label="Note (opzionali)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Class="mt-4" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Notes" />
+    </MudCardContent>
+    <MudCardActions Class="pa-4">
+        <MudText Class="flex-grow-1" Typo="Typo.h6">
+            Totale: <b>€@Total.ToString("N2")</b>
+        </MudText>
+        <MudButton OnClick="Clear" Variant="Variant.Text" Disabled="@(_cart.Count == 0)">Svuota</MudButton>
+        <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Send" Disabled="@(_submitting || _cart.Count == 0)">
+            Invia
+        </MudButton>
+    </MudCardActions>
+</MudCard>
+
+@code {
+    [Parameter] public EventCallback OnOrderPlaced { get; set; }
+
+    private string _attendeeId = "user-001";
+    private string _notes = string.Empty;
+    private bool _submitting;
+    private readonly Dictionary<string, int> _cart = new();
+
+    private decimal Total => _cart.Sum(kvp => kvp.Value * (MenuCatalog.Items.FirstOrDefault(m => m.Name == kvp.Key)?.Price ?? 0m));
+
+    private static bool IsVisible(MenuItemInfo item) =>
+        !(item.Name is "Tiramisu" or "Acqua Minerale" or "Espresso"); // hide duplicate entries preserved for lookup only
+
+    private void Toggle(string name)
+    {
+        if (_cart.TryGetValue(name, out var qty))
+            _cart[name] = qty + 1;
+        else
+            _cart[name] = 1;
+    }
+
+    private void Clear()
+    {
+        _cart.Clear();
+        _notes = string.Empty;
+    }
+
+    private async Task Submit()
+    {
+        if (_cart.Count == 0) return;
+        _submitting = true;
+        try
+        {
+            var items = _cart.Select(kvp =>
+            {
+                var info = MenuCatalog.Items.First(m => m.Name == kvp.Key);
+                return new OrderItem(info.Name, kvp.Value, info.Price);
+            }).ToList();
+
+            var command = new PlaceOrder(items, _attendeeId, string.IsNullOrWhiteSpace(_notes) ? null : _notes);
+            var client = HttpClientFactory.CreateClient("CommandApi");
+            var response = await client.PostAsJsonAsync("/api/orders", command);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Ordine inviato!", Severity.Success);
+                Clear();
+                if (OnOrderPlaced.HasDelegate) await OnOrderPlaced.InvokeAsync();
+            }
+            else
+            {
+                Snackbar.Add($"Errore: {response.StatusCode}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

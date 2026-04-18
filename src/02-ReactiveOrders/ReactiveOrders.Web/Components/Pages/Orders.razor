@@ -2,185 +2,87 @@
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.SignalR.Client
 @using System.Net.Http.Json
-@using ReactiveOrders.Contracts.Commands
 @implements IAsyncDisposable
+@inject NavigationManager Nav
+@inject IHttpClientFactory HttpClientFactory
+@inject IDialogService DialogService
 
 <PageTitle>ReactiveOrders — Ordini Live</PageTitle>
 
-<div class="container-fluid mt-3">
-    <h2 class="text-primary mb-3">🍕 ReactiveOrders — Sistema Ordini Conferenza</h2>
+<MudText Typo="Typo.h4" Class="mb-4" Style="font-weight:700;">
+    <MudIcon Icon="@Icons.Material.Filled.Dashboard" Class="mr-2" /> Dashboard ordini
+</MudText>
 
-    <div class="row g-3">
-        <!-- Nuovo Ordine -->
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header bg-primary text-white">📝 Nuovo Ordine</div>
-                <div class="card-body">
-                    <div class="mb-2">
-                        <label class="form-label">Partecipante</label>
-                        <input class="form-control form-control-sm" @bind="_attendeeId" placeholder="es. user-001" />
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label">Piatti</label>
-                        @foreach (var item in _menuItems)
+<StatsPanel Stats="_stats" />
+
+<MudGrid Spacing="3" Class="mt-3">
+    <MudItem xs="12" md="5" lg="4">
+        <NewOrderForm OnOrderPlaced="LoadDataAsync" />
+    </MudItem>
+    <MudItem xs="12" md="7" lg="8">
+        <OrdersTable Orders="_orders" OnRowClick="ShowDetails" />
+    </MudItem>
+    <MudItem xs="12" md="6">
+        <PopularItemsPanel Items="_popularItems" />
+    </MudItem>
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="3" Class="h-100">
+            <MudCardHeader>
+                <CardHeaderAvatar>
+                    <MudAvatar Color="Color.Tertiary"><MudIcon Icon="@Icons.Material.Filled.Bolt" /></MudAvatar>
+                </CardHeaderAvatar>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Live stream</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Default">Eventi dal SignalR hub</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Style="max-height:260px; overflow-y:auto;">
+                @if (_events.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Default">In attesa di eventi...</MudText>
+                }
+                else
+                {
+                    <MudTimeline TimelinePosition="TimelinePosition.Start">
+                        @foreach (var ev in _events.Take(15))
                         {
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" @bind="item.Selected" id="@item.Name" />
-                                <label class="form-check-label" for="@item.Name">
-                                    @item.Name — €@item.Price
-                                </label>
-                            </div>
+                            <MudTimelineItem Color="@EventColor(ev.Type)" Size="Size.Small">
+                                <ItemContent>
+                                    <MudText Typo="Typo.body2"><b>@ev.Type</b> · @ev.OrderId.ToString()[..8]</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Default">@ev.At.ToLocalTime().ToString("HH:mm:ss")</MudText>
+                                </ItemContent>
+                            </MudTimelineItem>
                         }
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label">Note</label>
-                        <input class="form-control form-control-sm" @bind="_notes" placeholder="Opzionale" />
-                    </div>
-                    <button class="btn btn-primary btn-sm w-100" @onclick="PlaceOrderAsync" disabled="@_submitting">
-                        @if (_submitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                        Invia Ordine
-                    </button>
-                    @if (!string.IsNullOrEmpty(_orderMessage))
-                    {
-                        <div class="alert alert-success mt-2 py-1 small">@_orderMessage</div>
-                    }
-                </div>
-            </div>
-
-            <!-- Stats -->
-            <div class="card mt-3">
-                <div class="card-header bg-info text-white">📊 Statistiche Live</div>
-                <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-6 mb-2">
-                            <div class="fw-bold fs-4">@_stats.TotalOrders</div>
-                            <small class="text-muted">Totale</small>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="fw-bold fs-4 text-warning">@_stats.PendingOrders</div>
-                            <small class="text-muted">In attesa</small>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="fw-bold fs-4 text-success">@_stats.ConfirmedOrders</div>
-                            <small class="text-muted">Confermati</small>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="fw-bold fs-4 text-danger">@_stats.RejectedOrders</div>
-                            <small class="text-muted">Rifiutati</small>
-                        </div>
-                    </div>
-                    <div class="text-center mt-2">
-                        <span class="badge bg-success fs-6">€@_stats.TotalRevenue.ToString("N2")</span>
-                        <div><small class="text-muted">Ricavo totale</small></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Lista Ordini -->
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header bg-dark text-white">
-                    📋 Ordini Recenti
-                    <span class="badge bg-light text-dark float-end">@_orders.Count</span>
-                </div>
-                <div class="card-body p-0" style="max-height:500px; overflow-y:auto;">
-                    <table class="table table-sm table-striped mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>ID</th>
-                                <th>Partecipante</th>
-                                <th>Stato</th>
-                                <th>Totale</th>
-                                <th>Data</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var o in _orders)
-                            {
-                                <tr>
-                                    <td><small>@o.OrderId.ToString()[..8]</small></td>
-                                    <td>@o.AttendeeId</td>
-                                    <td>
-                                        <span class="badge @GetStatusBadge(o.Status)">@o.Status</span>
-                                    </td>
-                                    <td>€@o.TotalAmount.ToString("N2")</td>
-                                    <td><small>@o.CreatedAt.ToString("HH:mm:ss")</small></td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Piatti Popolari -->
-            <div class="card mt-3">
-                <div class="card-header bg-warning text-dark">🏆 Piatti più ordinati</div>
-                <div class="card-body p-2">
-                    <div class="row">
-                        @foreach (var item in _popularItems.Take(5))
-                        {
-                            <div class="col mb-1">
-                                <div class="d-flex justify-content-between">
-                                    <span>@item.ItemName</span>
-                                    <span class="badge bg-primary">@item.TotalQuantity</span>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+                    </MudTimeline>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
 
 @code {
-    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
-
     private HubConnection? _hubConnection;
-    private string _attendeeId = "user-001";
-    private string _notes = "";
-    private bool _submitting;
-    private string _orderMessage = "";
     private List<OrderView> _orders = [];
     private StatsView _stats = new();
     private List<PopularItem> _popularItems = [];
-    private System.Timers.Timer? _refreshTimer;
-
-    private List<MenuItem> _menuItems =
-    [
-        new("Pizza Margherita", 8.50m),
-        new("Panino Gourmet", 6.00m),
-        new("Insalata Caesar", 7.00m),
-        new("Tiramisù", 5.00m),
-        new("Acqua 0.5L", 1.50m),
-        new("Caffè Espresso", 1.20m),
-    ];
+    private readonly List<LiveEvent> _events = new();
 
     protected override async Task OnInitializedAsync()
     {
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl(NavigationManager.ToAbsoluteUri("/orderhub"))
+            .WithUrl(Nav.ToAbsoluteUri("/orderhub"))
             .WithAutomaticReconnect()
             .Build();
 
         _hubConnection.On<string, Guid>("OrderUpdate", async (eventType, orderId) =>
         {
+            _events.Insert(0, new LiveEvent(eventType, orderId, DateTime.UtcNow));
+            if (_events.Count > 50) _events.RemoveRange(50, _events.Count - 50);
             await LoadDataAsync();
-            await InvokeAsync(StateHasChanged);
         });
 
         await _hubConnection.StartAsync();
         await LoadDataAsync();
-
-        _refreshTimer = new System.Timers.Timer(5000);
-        _refreshTimer.Elapsed += async (_, _) =>
-        {
-            await LoadDataAsync();
-            await InvokeAsync(StateHasChanged);
-        };
-        _refreshTimer.Start();
     }
 
     private async Task LoadDataAsync()
@@ -191,71 +93,33 @@
             _orders = await readClient.GetFromJsonAsync<List<OrderView>>("/api/orders") ?? [];
             _stats = await readClient.GetFromJsonAsync<StatsView>("/api/stats") ?? new();
             _popularItems = await readClient.GetFromJsonAsync<List<PopularItem>>("/api/popular-items") ?? [];
+            await InvokeAsync(StateHasChanged);
         }
-        catch { /* ignore during startup */ }
+        catch { /* ignore transient */ }
     }
 
-    private async Task PlaceOrderAsync()
+    private async Task ShowDetails(OrderView order)
     {
-        var selected = _menuItems.Where(m => m.Selected).ToList();
-        if (!selected.Any()) return;
-
-        _submitting = true;
-        var command = new PlaceOrder(
-            selected.Select(m => new OrderItem(m.Name, 1, m.Price)).ToList(),
-            _attendeeId,
-            string.IsNullOrWhiteSpace(_notes) ? null : _notes
-        );
-
-        try
-        {
-            var cmdClient = HttpClientFactory.CreateClient("CommandApi");
-            var response = await cmdClient.PostAsJsonAsync("/api/orders", command);
-            if (response.IsSuccessStatusCode)
-            {
-                _orderMessage = "✅ Ordine inviato!";
-                foreach (var m in _menuItems) m.Selected = false;
-                _notes = "";
-            }
-            else
-            {
-                _orderMessage = "❌ Errore nell'invio";
-            }
-        }
-        catch (Exception ex)
-        {
-            _orderMessage = $"❌ {ex.Message}";
-        }
-        finally
-        {
-            _submitting = false;
-        }
+        var parameters = new DialogParameters { [nameof(OrderDetailsDialog.OrderId)] = order.OrderId };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<OrderDetailsDialog>("Dettagli ordine", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) await LoadDataAsync();
     }
 
-    private string GetStatusBadge(string status) => status switch
+    private static Color EventColor(string type) => type switch
     {
-        "Placed" => "bg-warning text-dark",
-        "Confirmed" => "bg-success",
-        "Rejected" => "bg-danger",
-        "Cancelled" => "bg-secondary",
-        _ => "bg-light text-dark"
+        "OrderPlaced"    => Color.Warning,
+        "OrderConfirmed" => Color.Success,
+        "OrderRejected"  => Color.Error,
+        "OrderCancelled" => Color.Default,
+        _ => Color.Info
     };
 
     public async ValueTask DisposeAsync()
     {
-        _refreshTimer?.Dispose();
-        if (_hubConnection is not null)
-            await _hubConnection.DisposeAsync();
+        if (_hubConnection is not null) await _hubConnection.DisposeAsync();
     }
 
-    private class MenuItem(string name, decimal price)
-    {
-        public string Name { get; } = name;
-        public decimal Price { get; } = price;
-        public bool Selected { get; set; }
-    }
-
-    private record OrderView(Guid OrderId, string AttendeeId, string Status, decimal TotalAmount, int ItemCount, DateTime CreatedAt);
-    private record StatsView(int TotalOrders = 0, int ConfirmedOrders = 0, int RejectedOrders = 0, int CancelledOrders = 0, int PendingOrders = 0, decimal TotalRevenue = 0);
-    private record PopularItem(string ItemName, int OrderCount, int TotalQuantity);
+    private record LiveEvent(string Type, Guid OrderId, DateTime At);
 }

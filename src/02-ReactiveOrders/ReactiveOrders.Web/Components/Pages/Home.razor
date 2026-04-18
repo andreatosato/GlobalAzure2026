@@ -1,9 +1,55 @@
-﻿@page "/"
+@page "/"
 
 <PageTitle>ReactiveOrders</PageTitle>
 
-<div class="container mt-5 text-center">
-    <h1 class="display-3 text-primary fw-bold">ReactiveOrders</h1>
-    <p class="lead text-muted">Sistema ordini CQRS reattivo — Global Azure 2026</p>
-    <a href="/orders" class="btn btn-primary btn-lg mt-3">Vai agli Ordini Live</a>
-</div>
+<MudPaper Elevation="4" Class="pa-10 d-flex flex-column align-center"
+          Style="background:linear-gradient(135deg,#D7263D 0%,#F46036 100%); color:white; border-radius:24px;">
+    <MudText Typo="Typo.overline" Style="letter-spacing:4px; opacity:0.85;">Global Azure 2026</MudText>
+    <MudText Typo="Typo.h2" Align="Align.Center" Style="font-weight:900;">🍕 ReactiveOrders</MudText>
+    <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2" Style="max-width:720px; opacity:0.9;">
+        CQRS reattivo con .NET Aspire, Wolverine, Azure Service Bus, SignalR e Blazor.
+    </MudText>
+
+    <div class="d-flex gap-3 mt-6 flex-wrap justify-center">
+        <MudButton Href="/orders" Size="Size.Large" Variant="Variant.Filled" Color="Color.Surface"
+                   StartIcon="@Icons.Material.Filled.Dashboard">Dashboard ordini</MudButton>
+        <MudButton Href="/totem" Size="Size.Large" Variant="Variant.Outlined" Color="Color.Inherit"
+                   StartIcon="@Icons.Material.Filled.Tv" Style="border-color:white;">Totem clienti</MudButton>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3" Class="mt-6">
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="2" Class="h-100">
+            <MudCardContent>
+                <MudIcon Icon="@Icons.Material.Filled.FlashOn" Color="Color.Primary" Size="Size.Large" />
+                <MudText Typo="Typo.h6" Class="mt-2">Reattivo</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Default">
+                    Eventi propagati in tempo reale via SignalR appena Wolverine processa il messaggio.
+                </MudText>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="2" Class="h-100">
+            <MudCardContent>
+                <MudIcon Icon="@Icons.Material.Filled.AltRoute" Color="Color.Secondary" Size="Size.Large" />
+                <MudText Typo="Typo.h6" Class="mt-2">CQRS</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Default">
+                    Command API e Read API separati, con modello di lettura ottimizzato per la UI.
+                </MudText>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="2" Class="h-100">
+            <MudCardContent>
+                <MudIcon Icon="@Icons.Material.Filled.Cloud" Color="Color.Tertiary" Size="Size.Large" />
+                <MudText Typo="Typo.h6" Class="mt-2">Cloud-native</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Default">
+                    Orchestrazione .NET Aspire, pronto per Azure Service Bus e Azure SignalR in produzione.
+                </MudText>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>

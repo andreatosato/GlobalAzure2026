@@ -1,0 +1,58 @@
+@namespace ReactiveOrders.Web.Components.Shared
+
+<MudCard Elevation="3">
+    <MudCardHeader>
+        <CardHeaderAvatar>
+            <MudAvatar Color="Color.Info"><MudIcon Icon="@Icons.Material.Filled.ReceiptLong" /></MudAvatar>
+        </CardHeaderAvatar>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Ordini recenti</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Default">@Orders.Count ordini · clic per dettagli</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pa-0">
+        <MudDataGrid T="OrderView" Items="Orders" Dense="true" Hover="true" Striped="true"
+                     RowClick="OnRowClicked" FixedHeader="true" Height="520px">
+            <Columns>
+                <PropertyColumn Property="x => x.OrderId" Title="ID">
+                    <CellTemplate>
+                        <code>@context.Item.OrderId.ToString()[..8]</code>
+                    </CellTemplate>
+                </PropertyColumn>
+                <PropertyColumn Property="x => x.AttendeeId" Title="Partecipante" />
+                <PropertyColumn Property="x => x.Status" Title="Stato">
+                    <CellTemplate>
+                        <MudChip T="string" Color="@OrderStatus.ToColor(context.Item.Status)"
+                                 Icon="@OrderStatus.ToIcon(context.Item.Status)" Size="Size.Small" Variant="Variant.Filled">
+                            @OrderStatus.ToLabel(context.Item.Status)
+                        </MudChip>
+                    </CellTemplate>
+                </PropertyColumn>
+                <PropertyColumn Property="x => x.ItemCount" Title="Items" />
+                <PropertyColumn Property="x => x.TotalAmount" Title="Totale" Format="N2">
+                    <CellTemplate>
+                        <b>€@context.Item.TotalAmount.ToString("N2")</b>
+                    </CellTemplate>
+                </PropertyColumn>
+                <PropertyColumn Property="x => x.CreatedAt" Title="Ora">
+                    <CellTemplate>
+                        @context.Item.CreatedAt.ToLocalTime().ToString("HH:mm:ss")
+                    </CellTemplate>
+                </PropertyColumn>
+            </Columns>
+            <NoRecordsContent>
+                <MudText Class="pa-4" Align="Align.Center" Color="Color.Default">Nessun ordine</MudText>
+            </NoRecordsContent>
+        </MudDataGrid>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired] public List<OrderView> Orders { get; set; } = [];
+    [Parameter] public EventCallback<OrderView> OnRowClick { get; set; }
+
+    private async Task OnRowClicked(DataGridRowClickEventArgs<OrderView> args)
+    {
+        if (OnRowClick.HasDelegate) await OnRowClick.InvokeAsync(args.Item);
+    }
+}

@@ -1,0 +1,13 @@
+@namespace ReactiveOrders.Web.Components.Shared
+
+<div class="d-flex align-center gap-2 py-1">
+    <MudIcon Icon="@Icon" Size="Size.Small" Color="Color.Default" />
+    <MudText Typo="Typo.caption" Color="Color.Default" Style="min-width:110px;">@Label</MudText>
+    <MudText Typo="Typo.body2" Style="font-weight:500;">@Value</MudText>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Value { get; set; } = string.Empty;
+}

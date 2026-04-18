@@ -22,12 +22,15 @@ public class Order
         {
             AttendeeId = command.AttendeeId,
             Notes = command.Notes,
-            Lines = command.Items.Select(i => new OrderLine
-            {
-                Name = i.Name,
-                Quantity = i.Quantity,
-                UnitPrice = i.UnitPrice
-            }).ToList()
+            Lines = command.Items
+                .GroupBy(i => i.Name)
+                .Select(g => new OrderLine
+                {
+                    Name = g.Key,
+                    Quantity = g.Sum(i => i.Quantity),
+                    UnitPrice = g.First().UnitPrice
+                })
+                .ToList()
         };
         return order;
     }

@@ -1,0 +1,26 @@
+@namespace ReactiveOrders.Web.Components.Shared
+
+<MudGrid Spacing="3">
+    <MudItem xs="6" md="4" lg="2">
+        <StatCard Label="Totale" Value="@Stats.TotalOrders.ToString()" Icon="@Icons.Material.Filled.Receipt" IconColor="Color.Info" />
+    </MudItem>
+    <MudItem xs="6" md="4" lg="2">
+        <StatCard Label="In attesa" Value="@Stats.PendingOrders.ToString()" Icon="@Icons.Material.Filled.Schedule" IconColor="Color.Warning" />
+    </MudItem>
+    <MudItem xs="6" md="4" lg="2">
+        <StatCard Label="Confermati" Value="@Stats.ConfirmedOrders.ToString()" Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success" />
+    </MudItem>
+    <MudItem xs="6" md="4" lg="2">
+        <StatCard Label="Rifiutati" Value="@Stats.RejectedOrders.ToString()" Icon="@Icons.Material.Filled.Cancel" IconColor="Color.Error" />
+    </MudItem>
+    <MudItem xs="6" md="4" lg="2">
+        <StatCard Label="Annullati" Value="@Stats.CancelledOrders.ToString()" Icon="@Icons.Material.Filled.Block" IconColor="Color.Default" />
+    </MudItem>
+    <MudItem xs="6" md="4" lg="2">
+        <StatCard Label="Ricavo" Value="@($"€{Stats.TotalRevenue:N2}")" Icon="@Icons.Material.Filled.Euro" IconColor="Color.Tertiary" />
+    </MudItem>
+</MudGrid>
+
+@code {
+    [Parameter, EditorRequired] public StatsView Stats { get; set; } = new();
+}
