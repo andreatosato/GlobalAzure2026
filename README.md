@@ -3,7 +3,7 @@
 > **Global Azure 2026** — Sessione e demo su come costruire applicazioni reattive moderne con **.NET 10**, **.NET Aspire**, **Azure Service Bus**, **Azure SignalR** e **Blazor**.
 
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![Aspire](https://img.shields.io/badge/Aspire-9.x-5C2D91)](https://learn.microsoft.com/dotnet/aspire/)
+[![Aspire](https://img.shields.io/badge/Aspire-13.x-5C2D91)](https://learn.microsoft.com/dotnet/aspire/)
 [![Azure](https://img.shields.io/badge/Azure-Service%20Bus%20%7C%20SignalR-0078D4?logo=microsoftazure)](https://azure.microsoft.com/)
 
 ---
